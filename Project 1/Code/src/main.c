@@ -137,7 +137,11 @@ functionality.
 /* Standard includes. */
 #include <stdint.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "stm32f4_discovery.h"
+#include "stm32f4xx_adc.h"
+#include "stm32f4xx_gpio.h"
+
 /* Kernel includes. */
 #include "stm32f4xx.h"
 #include "../FreeRTOS_Source/include/FreeRTOS.h"
@@ -149,218 +153,109 @@ functionality.
 
 
 /*-----------------------------------------------------------*/
-#define mainQUEUE_LENGTH 100
-
-#define amber  	0
-#define green  	1
-#define red  	2
-#define blue  	3
-
-#define amber_led	LED3
-#define green_led	LED4
-#define red_led		LED5
-#define blue_led	LED6
-
-
-/*
- * TODO: Implement this function for any hardware specific clock configuration
- * that was not already performed before main() was called.
- */
-static void prvSetupHardware( void );
+#define TRAFFIC_LIGHT_QUEUE_MAX		1
+#define RED_LED						GPIO_Pin_0
+#define YELLOW_LED					GPIO_Pin_1
+#define GREEN_LED					GPIO_Pin_2
 
 /*
  * The queue send and receive tasks as described in the comments at the top of
  * this file.
  */
-static void Manager_Task( void *pvParameters );
-static void Blue_LED_Controller_Task( void *pvParameters );
-static void Green_LED_Controller_Task( void *pvParameters );
-static void Red_LED_Controller_Task( void *pvParameters );
-static void Amber_LED_Controller_Task( void *pvParameters );
+static void Traffic_Light_Task(void *pvParameters);
 
-xQueueHandle xQueue_handle = 0;
+static void GPIO_INIT();
+static void ADC_INIT();
 
+xQueueHandle xQueue_Light = 0;
 
 /*-----------------------------------------------------------*/
 
 int main(void)
 {
 
-	/* Initialize LEDs */
-	STM_EVAL_LEDInit(amber_led);
-	STM_EVAL_LEDInit(green_led);
-	STM_EVAL_LEDInit(red_led);
-	STM_EVAL_LEDInit(blue_led);
+	// Initialize LEDs
+	GPIO_INIT();
+	ADC_INIT();
 
-	/* Configure the system ready to run the demo.  The clock configuration
-	can be done here if it was not done before main() was called. */
-	prvSetupHardware();
+	// Create the queue used by the queue send and queue receive tasks
+	xQueue_Light = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
 
+	// Add to the registry, for the benefit of kernel aware debugging
+	vQueueAddToRegistry( xQueue_Light, "LightQueue" );
 
-	/* Create the queue used by the queue send and queue receive tasks.
-	http://www.freertos.org/a00116.html */
-	xQueue_handle = xQueueCreate( 	mainQUEUE_LENGTH,		/* The number of items the queue can hold. */
-							sizeof( uint16_t ) );	/* The size of each item the queue holds. */
+	xTaskCreate( Traffic_Light_Task, "Traffic_Light", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
-	/* Add to the registry, for the benefit of kernel aware debugging. */
-	vQueueAddToRegistry( xQueue_handle, "MainQueue" );
-
-	xTaskCreate( Manager_Task, "Manager", configMINIMAL_STACK_SIZE, NULL, 2, NULL);
-	xTaskCreate( Blue_LED_Controller_Task, "Blue_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Red_LED_Controller_Task, "Red_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Green_LED_Controller_Task, "Green_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( Amber_LED_Controller_Task, "Amber_LED", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-
-	/* Start the tasks and timer running. */
+	// Start the tasks and timer running
 	vTaskStartScheduler();
 
 	return 0;
 }
 
-
 /*-----------------------------------------------------------*/
 
-static void Manager_Task( void *pvParameters )
-{
-	uint16_t tx_data = amber;
+static void GPIO_INIT(){
+	// First enable the GPIOC clock
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
 
+	// Setup GPIO structure
+	GPIO_InitTypeDef GPIO_InitStruct;
+	GPIO_InitStruct.GPIO_Pin =		RED_LED | YELLOW_LED | GREEN_LED;
+	GPIO_InitStruct.GPIO_Mode =		GPIO_Mode_OUT;
+	GPIO_InitStruct.GPIO_Speed = 	GPIO_Speed_50MHz;
+	GPIO_InitStruct.GPIO_PuPd =		GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-	while(1)
-	{
-
-		if(tx_data == amber)
-			STM_EVAL_LEDOn(amber_led);
-		if(tx_data == green)
-			STM_EVAL_LEDOn(green_led);
-		if(tx_data == red)
-			STM_EVAL_LEDOn(red_led);
-		if(tx_data == blue)
-			STM_EVAL_LEDOn(blue_led);
-
-		if( xQueueSend(xQueue_handle,&tx_data,1000))
-		{
-			printf("Manager: %u ON!\n", tx_data);
-			if(++tx_data == 4)
-				tx_data = 0;
-			vTaskDelay(1000);
-		}
-		else
-		{
-			printf("Manager Failed!\n");
-		}
-	}
+	// Decide what pins to use for what things eg output to lights, analog to POT, output Data clock reset.
 }
 
 /*-----------------------------------------------------------*/
 
-static void Blue_LED_Controller_Task( void *pvParameters )
-{
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == blue)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(blue_led);
-				printf("Blue Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("BlueTask GRP (%u).\n", rx_data); // Got wwrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
-	}
-}
+static void ADC_INIT(){
+	// First enable the ADC clock
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
 
+	// Setup ADC structure
+	ADC_InitTypeDef ADC_InitStruct;
+	ADC_InitStruct.ADC_ContinuousConvMode =		DISABLE;
+	ADC_InitStruct.ADC_DataAlign =				ADC_DataAlign_Right;
+	ADC_InitStruct.ADC_Resolution =				ADC_Resolution_12b;
+	ADC_InitStruct.ADC_ScanConvMode =			DISABLE;
+	ADC_InitStruct.ADC_ExternalTrigConv =		DISABLE;
+	ADC_InitStruct.ADC_ExternalTrigConvEdge =	DISABLE;
 
-/*-----------------------------------------------------------*/
+	// Apply the setup to the ADC and enable
+	ADC_Init(ADC1, &ADC_InitStruct);
+	ADC_Cmd(ADC1, ENABLE);
 
-static void Green_LED_Controller_Task( void *pvParameters )
-{
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == green)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(green_led);
-				printf("Green Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("GreenTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
-	}
+	// Set the channel
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_13, 1, ADC_SampleTime_144Cycles);
 }
 
 /*-----------------------------------------------------------*/
 
-static void Red_LED_Controller_Task( void *pvParameters )
+static void Traffic_Light_Task( void *pvParameters )
 {
-	uint16_t rx_data;
+	uint16_t GLED = GREEN_LED;
+	uint16_t YLED = YELLOW_LED;
+	uint16_t RLED = RED_LED;
+	GPIO_SetBits(GPIOC, RESET);
 	while(1)
 	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == red)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(red_led);
-				printf("Red off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("RedTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
+		/*xQueueOverwrite(xQueue_Light, &GLED);
+		xQueueOverwrite(xQueue_Light, &YLED);
+		xQueueOverwrite(xQueue_Light, &RLED);*/
+		GPIO_ResetBits(GPIOC, RED_LED);
+		GPIO_ResetBits(GPIOC, YELLOW_LED);
+		GPIO_ResetBits(GPIOC, GREEN_LED);
+
+		vTaskDelay(pdMS_TO_TICKS(500));
+
+		GPIO_SetBits(GPIOC, GLED);
+		GPIO_SetBits(GPIOC, YLED);
+		GPIO_SetBits(GPIOC, RLED);
 	}
 }
-
-
-/*-----------------------------------------------------------*/
-
-static void Amber_LED_Controller_Task( void *pvParameters )
-{
-	uint16_t rx_data;
-	while(1)
-	{
-		if(xQueueReceive(xQueue_handle, &rx_data, 500))
-		{
-			if(rx_data == amber)
-			{
-				vTaskDelay(250);
-				STM_EVAL_LEDOff(amber_led);
-				printf("Amber Off.\n");
-			}
-			else
-			{
-				if( xQueueSend(xQueue_handle,&rx_data,1000))
-					{
-						printf("AmberTask GRP (%u).\n", rx_data); // Got wrong Package
-						vTaskDelay(500);
-					}
-			}
-		}
-	}
-}
-
 
 /*-----------------------------------------------------------*/
 
