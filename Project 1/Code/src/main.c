@@ -157,15 +157,24 @@ functionality.
 #define RED_LED						GPIO_Pin_0
 #define YELLOW_LED					GPIO_Pin_1
 #define GREEN_LED					GPIO_Pin_2
+#define POT							GPIO_Pin_3
 
 /*
  * The queue send and receive tasks as described in the comments at the top of
  * this file.
  */
 static void Traffic_Light_Task(void *pvParameters);
+static void Traffic_Flow_Task(void *pvParameters);
+
 
 static void GPIO_INIT();
 static void ADC_INIT();
+static void Turn_On_Green(uint16_t GLED);
+static void Turn_On_Red(uint16_t RLED);
+static void Turn_On_Yellow(uint16_t YLED);
+static uint16_t Get_ADC_Val();
+
+
 
 xQueueHandle xQueue_Light = 0;
 
@@ -185,9 +194,14 @@ int main(void)
 	vQueueAddToRegistry( xQueue_Light, "LightQueue" );
 
 	xTaskCreate( Traffic_Light_Task, "Traffic_Light", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	//xTaskCreate( Traffic_Flow_Task, "Traffic_Flow", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+
+
 
 	// Start the tasks and timer running
 	vTaskStartScheduler();
+
+	for ( ;; );
 
 	return 0;
 }
@@ -198,11 +212,17 @@ static void GPIO_INIT(){
 	// First enable the GPIOC clock
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
 
-	// Setup GPIO structure
+	// Setup GPIO structure for traffic lights
 	GPIO_InitTypeDef GPIO_InitStruct;
 	GPIO_InitStruct.GPIO_Pin =		RED_LED | YELLOW_LED | GREEN_LED;
 	GPIO_InitStruct.GPIO_Mode =		GPIO_Mode_OUT;
 	GPIO_InitStruct.GPIO_Speed = 	GPIO_Speed_50MHz;
+	GPIO_InitStruct.GPIO_PuPd =		GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+	// Setup GPIO structure for pot
+	GPIO_InitStruct.GPIO_Pin =		POT;
+	GPIO_InitStruct.GPIO_Mode =		GPIO_Mode_AN;
 	GPIO_InitStruct.GPIO_PuPd =		GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOC, &GPIO_InitStruct);
 
@@ -239,25 +259,58 @@ static void Traffic_Light_Task( void *pvParameters )
 	uint16_t GLED = GREEN_LED;
 	uint16_t YLED = YELLOW_LED;
 	uint16_t RLED = RED_LED;
+	// Initial reset to make sure we are always starting on neutral
 	GPIO_SetBits(GPIOC, RESET);
+
+	int adc_value = 500;
+	int delay_time_rg = adc_value*2;
+	int delay_time_y = 500;
+
 	while(1)
 	{
-		/*xQueueOverwrite(xQueue_Light, &GLED);
-		xQueueOverwrite(xQueue_Light, &YLED);
-		xQueueOverwrite(xQueue_Light, &RLED);*/
-		GPIO_ResetBits(GPIOC, RED_LED);
-		GPIO_ResetBits(GPIOC, YELLOW_LED);
-		GPIO_ResetBits(GPIOC, GREEN_LED);
+		Turn_On_Green(GLED);
+		vTaskDelay(pdMS_TO_TICKS(Get_ADC_Val()));
 
-		vTaskDelay(pdMS_TO_TICKS(500));
 
-		GPIO_SetBits(GPIOC, GLED);
-		GPIO_SetBits(GPIOC, YLED);
-		GPIO_SetBits(GPIOC, RLED);
+		Turn_On_Yellow(YLED);
+		vTaskDelay(pdMS_TO_TICKS(delay_time_y));
+
+
+		Turn_On_Red(RLED);
+		vTaskDelay(pdMS_TO_TICKS(delay_time_rg * 2));
 	}
 }
 
+static void Turn_On_Red(uint16_t RLED){
+	xQueueOverwrite(xQueue_Light, &RLED);
+	GPIO_ResetBits(GPIOC, YELLOW_LED);
+	GPIO_SetBits(GPIOC, RLED);
+}
+
+static void Turn_On_Yellow(uint16_t YLED){
+	xQueueOverwrite(xQueue_Light, &YLED);
+	GPIO_ResetBits(GPIOC, GREEN_LED);
+	GPIO_SetBits(GPIOC, YLED);
+}
+
+static void Turn_On_Green(uint16_t GLED){
+	xQueueOverwrite(xQueue_Light, &GLED);
+	GPIO_ResetBits(GPIOC, RED_LED);
+	GPIO_SetBits(GPIOC, GLED);
+}
+
 /*-----------------------------------------------------------*/
+static void Traffic_Flow_Task(void *pvParameters){
+
+}
+
+static uint16_t Get_ADC_Val(){
+	ADC_SoftwareStartConv(ADC1);
+	while (!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
+	return ADC_GetConversionValue(ADC1);
+}
+/*-----------------------------------------------------------*/
+
 
 void vApplicationMallocFailedHook( void )
 {
@@ -318,4 +371,3 @@ static void prvSetupHardware( void )
 	/* TODO: Setup the clocks, etc. here, if they were not configured before
 	main() was called. */
 }
-
