@@ -158,6 +158,11 @@ functionality.
 #define YELLOW_LED					GPIO_Pin_1
 #define GREEN_LED					GPIO_Pin_2
 #define POT							GPIO_Pin_3
+#define SHIFT_DATA					GPIO_Pin_6
+#define SHIFT_CLOCK					GPIO_Pin_7
+#define SHIFT_RESET					GPIO_Pin_8
+#define MIN_TIME					3000
+#define MAX_TIME					9000
 
 /*
  * The queue send and receive tasks as described in the comments at the top of
@@ -173,6 +178,7 @@ static void Turn_On_Green(uint16_t GLED);
 static void Turn_On_Red(uint16_t RLED);
 static void Turn_On_Yellow(uint16_t YLED);
 static uint16_t Get_ADC_Val();
+static uint16_t Time_Scale(uint16_t led);
 
 
 
@@ -208,7 +214,8 @@ int main(void)
 
 /*-----------------------------------------------------------*/
 
-static void GPIO_INIT(){
+static void GPIO_INIT()
+{
 	// First enable the GPIOC clock
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
 
@@ -217,7 +224,6 @@ static void GPIO_INIT(){
 	GPIO_InitStruct.GPIO_Pin =		RED_LED | YELLOW_LED | GREEN_LED;
 	GPIO_InitStruct.GPIO_Mode =		GPIO_Mode_OUT;
 	GPIO_InitStruct.GPIO_Speed = 	GPIO_Speed_50MHz;
-	GPIO_InitStruct.GPIO_PuPd =		GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOC, &GPIO_InitStruct);
 
 	// Setup GPIO structure for pot
@@ -226,12 +232,17 @@ static void GPIO_INIT(){
 	GPIO_InitStruct.GPIO_PuPd =		GPIO_PuPd_NOPULL;
 	GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-	// Decide what pins to use for what things eg output to lights, analog to POT, output Data clock reset.
+	// Setup shift registers for traffic flow
+	GPIO_InitStruct.GPIO_Pin =		SHIFT_DATA | SHIFT_CLOCK | SHIFT_RESET;
+	GPIO_InitStruct.GPIO_Mode =		GPIO_Mode_OUT;
+	GPIO_InitStruct.GPIO_Speed =	GPIO_Speed_50MHz;
+	GPIO_Init(GPIOC, &GPIO_InitStruct);
 }
 
 /*-----------------------------------------------------------*/
 
-static void ADC_INIT(){
+static void ADC_INIT()
+{
 	// First enable the ADC clock
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
 
@@ -259,58 +270,70 @@ static void Traffic_Light_Task( void *pvParameters )
 	uint16_t GLED = GREEN_LED;
 	uint16_t YLED = YELLOW_LED;
 	uint16_t RLED = RED_LED;
+
 	// Initial reset to make sure we are always starting on neutral
 	GPIO_SetBits(GPIOC, RESET);
-
-	int adc_value = 500;
-	int delay_time_rg = adc_value*2;
-	int delay_time_y = 500;
 
 	while(1)
 	{
 		Turn_On_Green(GLED);
-		vTaskDelay(pdMS_TO_TICKS(Get_ADC_Val()));
-
+		vTaskDelay(pdMS_TO_TICKS(Time_Scale(GLED)));
 
 		Turn_On_Yellow(YLED);
-		vTaskDelay(pdMS_TO_TICKS(delay_time_y));
-
+		vTaskDelay(pdMS_TO_TICKS(MIN_TIME));
 
 		Turn_On_Red(RLED);
-		vTaskDelay(pdMS_TO_TICKS(delay_time_rg * 2));
+		vTaskDelay(pdMS_TO_TICKS(Time_Scale(RLED)));
 	}
 }
 
-static void Turn_On_Red(uint16_t RLED){
+static void Turn_On_Red( uint16_t RLED )
+{
 	xQueueOverwrite(xQueue_Light, &RLED);
 	GPIO_ResetBits(GPIOC, YELLOW_LED);
 	GPIO_SetBits(GPIOC, RLED);
 }
 
-static void Turn_On_Yellow(uint16_t YLED){
+static void Turn_On_Yellow( uint16_t YLED )
+{
 	xQueueOverwrite(xQueue_Light, &YLED);
 	GPIO_ResetBits(GPIOC, GREEN_LED);
 	GPIO_SetBits(GPIOC, YLED);
 }
 
-static void Turn_On_Green(uint16_t GLED){
+static void Turn_On_Green( uint16_t GLED )
+{
 	xQueueOverwrite(xQueue_Light, &GLED);
 	GPIO_ResetBits(GPIOC, RED_LED);
 	GPIO_SetBits(GPIOC, GLED);
 }
 
+static uint16_t Time_Scale( uint16_t led )
+{
+	uint16_t pot_val = Get_ADC_Val();
+	if (led == GREEN_LED){
+		return pdMS_TO_TICKS(MIN_TIME) + ((pot_val * (pdMS_TO_TICKS(6000))) / 4095);
+	}
+	else {
+		return pdMS_TO_TICKS(MAX_TIME) - ((pot_val * (pdMS_TO_TICKS(6000))) / 4095);
+	}
+}
+
 /*-----------------------------------------------------------*/
-static void Traffic_Flow_Task(void *pvParameters){
+
+static void Traffic_Flow_Task( void *pvParameters )
+{
 
 }
 
-static uint16_t Get_ADC_Val(){
+static uint16_t Get_ADC_Val()
+{
 	ADC_SoftwareStartConv(ADC1);
 	while (!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
 	return ADC_GetConversionValue(ADC1);
 }
-/*-----------------------------------------------------------*/
 
+/*-----------------------------------------------------------*/
 
 void vApplicationMallocFailedHook( void )
 {
@@ -324,6 +347,7 @@ void vApplicationMallocFailedHook( void )
 	configTOTAL_HEAP_SIZE configuration constant in FreeRTOSConfig.h. */
 	for( ;; );
 }
+
 /*-----------------------------------------------------------*/
 
 void vApplicationStackOverflowHook( xTaskHandle pxTask, signed char *pcTaskName )
@@ -338,6 +362,7 @@ void vApplicationStackOverflowHook( xTaskHandle pxTask, signed char *pcTaskName 
 	corrupt. */
 	for( ;; );
 }
+
 /*-----------------------------------------------------------*/
 
 void vApplicationIdleHook( void )
@@ -360,6 +385,7 @@ volatile size_t xFreeStackSpace;
 		reduced accordingly. */
 	}
 }
+
 /*-----------------------------------------------------------*/
 
 static void prvSetupHardware( void )
