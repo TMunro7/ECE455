@@ -170,7 +170,8 @@ functionality.
  */
 static void Traffic_Light_Task(void *pvParameters);
 static void Traffic_Flow_Task(void *pvParameters);
-
+static void System_Display_Task(void *pvParameters);
+static void Traffic_Generator_Task(void *pvParameters);
 
 static void GPIO_INIT();
 static void ADC_INIT();
@@ -195,13 +196,14 @@ int main(void)
 
 	// Create the queue used by the queue send and queue receive tasks
 	xQueue_Light = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
-
+	//xQueue_Flow
 	// Add to the registry, for the benefit of kernel aware debugging
 	vQueueAddToRegistry( xQueue_Light, "LightQueue" );
 
 	xTaskCreate( Traffic_Light_Task, "Traffic_Light", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	//xTaskCreate( Traffic_Flow_Task, "Traffic_Flow", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-
+	xTaskCreate( System_Display_Task, "System_Display", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	//xTaskCreate( Traffic_Generator_Task, "Traffic_Generator", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 
 	// Start the tasks and timer running
@@ -321,10 +323,66 @@ static uint16_t Time_Scale( uint16_t led )
 
 /*-----------------------------------------------------------*/
 
-static void Traffic_Flow_Task( void *pvParameters )
+static void System_Display_Task( void *pvParameters )
 {
+	// Create a list of 19 cars.
+	// The first 8 cars (cars 0 to 7) are before the stop line and will stop on red.
+	// The next 11 cars (8 to 18) are after the stop line and don't get affected by the lights.
+	int car_traffic[19] = {0};
+	uint16_t traffic_light_status;
+	GPIO_SetBits(GPIOC, SHIFT_RESET);
+
+	// Start loop of program running
+	while(1){
+		// Get colour of the traffic light with 5000 ms timeout
+		xQueuePeek(xQueue_Light, &traffic_light_status, 5000);
+		for (int i=20; i>0; i--){
+			if(car_traffic[i]){
+				// If there is a car in this spot of the array, turn on corresponding light
+				GPIO_SetBits(GPIOC, SHIFT_DATA);
+			} else {
+				// Else turn off the corresponding light
+				GPIO_ResetBits(GPIOC, SHIFT_DATA);
+			}
+			// Move to the next spot in the shift register
+			GPIO_SetBits(GPIOC, SHIFT_CLOCK);
+			GPIO_ResetBits(GPIOC, SHIFT_CLOCK);
+		}
+		if(traffic_light_status == GREEN_LED){
+			// If the light is green, shift the array one unit to the right for each tick
+			for(int i = 19; i>0; i--){
+				car_traffic[i] = car_traffic[i-1];
+				car_traffic[i-1] = 0;
+			}
+		} else {
+			// Else, shift cars according to what needs to be done on a red/yellow light
+			for (int i=8; i>0; i--){
+				// First 8 cars (0 to 7) stop before the lights
+				if(!(car_traffic[i])){
+					// If next car is empty, shift current car to next position and set current position to empty
+					car_traffic[i] = car_traffic[i-1];
+					car_traffic[i-1] = 0;
+				}
+			}
+			for (int i=19; i>9; i--){
+				// Move cars normally after the lights.
+				car_traffic[i] = car_traffic[i-1];
+				car_traffic[i-1] = 0;
+			}
+
+		}
+		// Add car to the road.
+		car_traffic[0] = 1;
+		vTaskDelay(pdMS_TO_TICKS(500));
+	}
 
 }
+
+static void Traffic_Flow_Task( void *pvParameters ){
+
+}
+
+static void Traffic_Generator_Task( void *pvParameters ){}
 
 static uint16_t Get_ADC_Val()
 {
