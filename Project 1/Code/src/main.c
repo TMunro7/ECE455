@@ -184,6 +184,8 @@ static uint16_t Time_Scale(uint16_t led);
 
 
 xQueueHandle xQueue_Light = 0;
+xQueueHandle xQueue_Flow = 0;
+xQueueHandle xQueue_Cars = 0;
 
 /*-----------------------------------------------------------*/
 
@@ -196,9 +198,13 @@ int main(void)
 
 	// Create the queue used by the queue send and queue receive tasks
 	xQueue_Light = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
-	//xQueue_Flow
+	xQueue_Flow = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
+	//xQueue_Cars = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
+
 	// Add to the registry, for the benefit of kernel aware debugging
 	vQueueAddToRegistry( xQueue_Light, "LightQueue" );
+	//vQueueAddToRegistry( xQueue_Flow, "FlowQueue" );
+	//vQueueAddToRegistry( xQueue_Cars, "CarQueue" );
 
 	xTaskCreate( Traffic_Light_Task, "Traffic_Light", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	//xTaskCreate( Traffic_Flow_Task, "Traffic_Flow", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
@@ -336,7 +342,7 @@ static void System_Display_Task( void *pvParameters )
 	while(1){
 		// Get colour of the traffic light with 5000 ms timeout
 		xQueuePeek(xQueue_Light, &traffic_light_status, 5000);
-		for (int i=20; i>0; i--){
+		for (int i=19; i>0; i--){
 			if(car_traffic[i]){
 				// If there is a car in this spot of the array, turn on corresponding light
 				GPIO_SetBits(GPIOC, SHIFT_DATA);
@@ -352,11 +358,11 @@ static void System_Display_Task( void *pvParameters )
 			// If the light is green, shift the array one unit to the right for each tick
 			for(int i = 19; i>0; i--){
 				car_traffic[i] = car_traffic[i-1];
-				car_traffic[i-1] = 0;
+				//car_traffic[i-1] = 0;
 			}
 		} else {
 			// Else, shift cars according to what needs to be done on a red/yellow light
-			for (int i=8; i>0; i--){
+			for (int i=19; i>9; i--){
 				// First 8 cars (0 to 7) stop before the lights
 				if(!(car_traffic[i])){
 					// If next car is empty, shift current car to next position and set current position to empty
@@ -364,25 +370,43 @@ static void System_Display_Task( void *pvParameters )
 					car_traffic[i-1] = 0;
 				}
 			}
-			for (int i=19; i>9; i--){
+			for (int i=8; i>0; i--){
 				// Move cars normally after the lights.
 				car_traffic[i] = car_traffic[i-1];
-				car_traffic[i-1] = 0;
+				//car_traffic[i-1] = 0;
 			}
 
 		}
 		// Add car to the road.
+		//xQueuePeek(xQueue_Cars, &car_traffic[0], 5000);
+		//xQueueOverwrite(xQueue_Cars, 0);
 		car_traffic[0] = 1;
 		vTaskDelay(pdMS_TO_TICKS(500));
 	}
 
 }
 
-static void Traffic_Flow_Task( void *pvParameters ){
-
+static void Traffic_Flow_Task( void *pvParameters )
+{
+	for ( ;; )
+	{
+		uint16_t flow_rate = (uint16_t)(Time_Scale(RED_LED)/1000) - 3;
+		xQueueOverwrite(xQueue_Flow, &flow_rate);
+	}
 }
 
-static void Traffic_Generator_Task( void *pvParameters ){}
+static void Traffic_Generator_Task( void *pvParameters )
+{
+	uint16_t flow;
+	uint16_t car = 1;
+
+	for ( ;; )
+	{
+		xQueuePeek(xQueue_Flow, &flow, 5000);
+		xQueueOverwrite(xQueue_Cars, &car);
+		vTaskDelay(pdMS_TO_TICKS(500) * flow);
+	}
+}
 
 static uint16_t Get_ADC_Val()
 {
@@ -400,7 +424,7 @@ void vApplicationMallocFailedHook( void )
 
 	Called if a call to pvPortMalloc() fails because there is insufficient
 	free memory available in the FreeRTOS heap.  pvPortMalloc() is called
-	internally by FreeRTOS API functions that create tasks, queues, software 
+	internally by FreeRTOS API functions that create tasks, queues, software
 	timers, and semaphores.  The size of the FreeRTOS heap is set by the
 	configTOTAL_HEAP_SIZE configuration constant in FreeRTOSConfig.h. */
 	for( ;; );
