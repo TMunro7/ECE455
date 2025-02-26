@@ -199,17 +199,17 @@ int main(void)
 	// Create the queue used by the queue send and queue receive tasks
 	xQueue_Light = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
 	xQueue_Flow = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
-	//xQueue_Cars = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
+	xQueue_Cars = xQueueCreate(TRAFFIC_LIGHT_QUEUE_MAX, sizeof( uint16_t ) );
 
 	// Add to the registry, for the benefit of kernel aware debugging
 	vQueueAddToRegistry( xQueue_Light, "LightQueue" );
-	//vQueueAddToRegistry( xQueue_Flow, "FlowQueue" );
-	//vQueueAddToRegistry( xQueue_Cars, "CarQueue" );
+	vQueueAddToRegistry( xQueue_Flow, "FlowQueue" );
+	vQueueAddToRegistry( xQueue_Cars, "CarQueue" );
 
 	xTaskCreate( Traffic_Light_Task, "Traffic_Light", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	//xTaskCreate( Traffic_Flow_Task, "Traffic_Flow", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Traffic_Flow_Task, "Traffic_Flow", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( System_Display_Task, "System_Display", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	//xTaskCreate( Traffic_Generator_Task, "Traffic_Generator", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( Traffic_Generator_Task, "Traffic_Generator", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 
 	// Start the tasks and timer running
@@ -335,6 +335,7 @@ static void System_Display_Task( void *pvParameters )
 	// The first 8 cars (cars 0 to 7) are before the stop line and will stop on red.
 	// The next 11 cars (8 to 18) are after the stop line and don't get affected by the lights.
 	int car_traffic[19] = {0};
+	int queued_cars = 0;
 	uint16_t traffic_light_status;
 	GPIO_SetBits(GPIOC, SHIFT_RESET);
 
@@ -362,7 +363,7 @@ static void System_Display_Task( void *pvParameters )
 			}
 		} else {
 			// Else, shift cars according to what needs to be done on a red/yellow light
-			for (int i=19; i>9; i--){
+			for (int i=8; i>0; i--){
 				// First 8 cars (0 to 7) stop before the lights
 				if(!(car_traffic[i])){
 					// If next car is empty, shift current car to next position and set current position to empty
@@ -370,17 +371,37 @@ static void System_Display_Task( void *pvParameters )
 					car_traffic[i-1] = 0;
 				}
 			}
-			for (int i=8; i>0; i--){
+			for (int i=19; i>9; i--){
 				// Move cars normally after the lights.
 				car_traffic[i] = car_traffic[i-1];
-				//car_traffic[i-1] = 0;
+				car_traffic[i-1] = 0;
 			}
 
 		}
 		// Add car to the road.
-		//xQueuePeek(xQueue_Cars, &car_traffic[0], 5000);
-		//xQueueOverwrite(xQueue_Cars, 0);
-		car_traffic[0] = 1;
+		/*if(xQueuePeek(xQueue_Cars, &queued_cars, 5000) == pdPASS)
+		{
+			if(queued_cars)
+			{
+				car_traffic[0] = 1;
+				xQueueOverwrite(xQueue_Cars, 0);
+			}
+		}*/
+
+
+//		xQueuePeek(xQueue_Cars, &car_traffic[0], 5000);
+//		xQueueOverwrite(xQueue_Cars, 0);
+		//car_traffic[0] = 1;
+		uint16_t car = 0;
+		BaseType_t cars_status = xQueueReceive(xQueue_Cars, &car, pdMS_TO_TICKS(100));
+		car_traffic[0] = 0;
+		if(cars_status == pdTRUE)
+		{
+			if(car == 1)
+			{
+				car_traffic[0] = 1;
+			}
+		}
 		vTaskDelay(pdMS_TO_TICKS(500));
 	}
 
@@ -399,12 +420,17 @@ static void Traffic_Generator_Task( void *pvParameters )
 {
 	uint16_t flow;
 	uint16_t car = 1;
+	BaseType_t status;
 
 	for ( ;; )
 	{
-		xQueuePeek(xQueue_Flow, &flow, 5000);
-		xQueueOverwrite(xQueue_Cars, &car);
-		vTaskDelay(pdMS_TO_TICKS(500) * flow);
+		status = xQueuePeek(xQueue_Flow, &flow, 5000);
+
+		if(status == pdPASS)
+		{
+			xQueueOverwrite(xQueue_Cars, &car);
+			vTaskDelay(pdMS_TO_TICKS(500 * flow));
+		}
 	}
 }
 
