@@ -1,138 +1,9 @@
-/*
-    FreeRTOS V9.0.0 - Copyright (C) 2016 Real Time Engineers Ltd.
-    All rights reserved
+// Tay Munro V00965447
+// Jet Lam 	 V00
 
-    VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
-
-    This file is part of the FreeRTOS distribution.
-
-    FreeRTOS is free software; you can redistribute it and/or modify it under
-    the terms of the GNU General Public License (version 2) as published by the
-    Free Software Foundation >>>> AND MODIFIED BY <<<< the FreeRTOS exception.
-
-    ***************************************************************************
-    >>!   NOTE: The modification to the GPL is included to allow you to     !<<
-    >>!   distribute a combined work that includes FreeRTOS without being   !<<
-    >>!   obliged to provide the source code for proprietary components     !<<
-    >>!   outside of the FreeRTOS kernel.                                   !<<
-    ***************************************************************************
-
-    FreeRTOS is distributed in the hope that it will be useful, but WITHOUT ANY
-    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-    FOR A PARTICULAR PURPOSE.  Full license text is available on the following
-    link: http://www.freertos.org/a00114.html
-
-    ***************************************************************************
-     *                                                                       *
-     *    FreeRTOS provides completely free yet professionally developed,    *
-     *    robust, strictly quality controlled, supported, and cross          *
-     *    platform software that is more than just the market leader, it     *
-     *    is the industry's de facto standard.                               *
-     *                                                                       *
-     *    Help yourself get started quickly while simultaneously helping     *
-     *    to support the FreeRTOS project by purchasing a FreeRTOS           *
-     *    tutorial book, reference manual, or both:                          *
-     *    http://www.FreeRTOS.org/Documentation                              *
-     *                                                                       *
-    ***************************************************************************
-
-    http://www.FreeRTOS.org/FAQHelp.html - Having a problem?  Start by reading
-    the FAQ page "My application does not run, what could be wwrong?".  Have you
-    defined configASSERT()?
-
-    http://www.FreeRTOS.org/support - In return for receiving this top quality
-    embedded software for free we request you assist our global community by
-    participating in the support forum.
-
-    http://www.FreeRTOS.org/training - Investing in training allows your team to
-    be as productive as possible as early as possible.  Now you can receive
-    FreeRTOS training directly from Richard Barry, CEO of Real Time Engineers
-    Ltd, and the world's leading authority on the world's leading RTOS.
-
-    http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
-    including FreeRTOS+Trace - an indispensable productivity tool, a DOS
-    compatible FAT file system, and our tiny thread aware UDP/IP stack.
-
-    http://www.FreeRTOS.org/labs - Where new FreeRTOS products go to incubate.
-    Come and try FreeRTOS+TCP, our new open source TCP/IP stack for FreeRTOS.
-
-    http://www.OpenRTOS.com - Real Time Engineers ltd. license FreeRTOS to High
-    Integrity Systems ltd. to sell under the OpenRTOS brand.  Low cost OpenRTOS
-    licenses offer ticketed support, indemnification and commercial middleware.
-
-    http://www.SafeRTOS.com - High Integrity Systems also provide a safety
-    engineered and independently SIL3 certified version for use in safety and
-    mission critical applications that require provable dependability.
-
-    1 tab == 4 spaces!
-*/
-
-/*
-FreeRTOS is a market leading RTOS from Real Time Engineers Ltd. that supports
-31 architectures and receives 77500 downloads a year. It is professionally
-developed, strictly quality controlled, robust, supported, and free to use in
-commercial products without any requirement to expose your proprietary source
-code.
-
-This simple FreeRTOS demo does not make use of any IO ports, so will execute on
-any Cortex-M3 of Cortex-M4 hardware.  Look for TODO markers in the code for
-locations that may require tailoring to, for example, include a manufacturer
-specific header file.
-
-This is a starter project, so only a subset of the RTOS features are
-demonstrated.  Ample source comments are provided, along with web links to
-relevant pages on the http://www.FreeRTOS.org site.
-
-Here is a description of the project's functionality:
-
-The main() Function:
-main() creates the tasks and software timers described in this section, before
-starting the scheduler.
-
-The Queue Send Task:
-The queue send task is implemented by the prvQueueSendTask() function.
-The task uses the FreeRTOS vTaskDelayUntil() and xQueueSend() API functions to
-periodically send the number 100 on a queue.  The period is set to 200ms.  See
-the comments in the function for more details.
-http://www.freertos.org/vtaskdelayuntil.html
-http://www.freertos.org/a00117.html
-
-The Queue Receive Task:
-The queue receive task is implemented by the prvQueueReceiveTask() function.
-The task uses the FreeRTOS xQueueReceive() API function to receive values from
-a queue.  The values received are those sent by the queue send task.  The queue
-receive task increments the ulCountOfItemsReceivedOnQueue variable each time it
-receives the value 100.  Therefore, as values are sent to the queue every 200ms,
-the value of ulCountOfItemsReceivedOnQueue will increase by 5 every second.
-http://www.freertos.org/a00118.html
-
-An example software timer:
-A software timer is created with an auto reloading period of 1000ms.  The
-timer's callback function increments the ulCountOfTimerCallbackExecutions
-variable each time it is called.  Therefore the value of
-ulCountOfTimerCallbackExecutions will count seconds.
-http://www.freertos.org/RTOS-software-timer.html
-
-The FreeRTOS RTOS tick hook (or callback) function:
-The tick hook function executes in the context of the FreeRTOS tick interrupt.
-The function 'gives' a semaphore every 500th time it executes.  The semaphore
-is used to synchronise with the event semaphore task, which is described next.
-
-The event semaphore task:
-The event semaphore task uses the FreeRTOS xSemaphoreTake() API function to
-wait for the semaphore that is given by the RTOS tick hook function.  The task
-increments the ulCountOfReceivedSemaphores variable each time the semaphore is
-received.  As the semaphore is given every 500ms (assuming a tick frequency of
-1KHz), the value of ulCountOfReceivedSemaphores will increase by 2 each second.
-
-The idle hook (or callback) function:
-The idle hook function queries the amount of free FreeRTOS heap space available.
-See vApplicationIdleHook().
-
-The malloc failed and stack overflow hook (or callback) functions:
-These two hook functions are provided as examples, but do not contain any
-functionality.
-*/
+// ##########################################################################
+// 			IMPORTS GLOBAL VARIABLES AND FUNCTION DECLARATIONS
+// ##########################################################################
 
 /* Standard includes. */
 #include <stdint.h>
@@ -150,9 +21,6 @@ functionality.
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
 
-
-
-/*-----------------------------------------------------------*/
 #define TRAFFIC_LIGHT_QUEUE_MAX		1
 #define RED_LED						GPIO_Pin_0
 #define YELLOW_LED					GPIO_Pin_1
@@ -164,10 +32,6 @@ functionality.
 #define MIN_TIME					3000
 #define MAX_TIME					9000
 
-/*
- * The queue send and receive tasks as described in the comments at the top of
- * this file.
- */
 static void Traffic_Light_Task(void *pvParameters);
 static void Traffic_Flow_Task(void *pvParameters);
 static void System_Display_Task(void *pvParameters);
@@ -181,13 +45,13 @@ static void Turn_On_Yellow(uint16_t YLED);
 static uint16_t Get_ADC_Val();
 static uint16_t Time_Scale(uint16_t led);
 
-
-
 xQueueHandle xQueue_Light = 0;
 xQueueHandle xQueue_Flow = 0;
 xQueueHandle xQueue_Cars = 0;
 
-/*-----------------------------------------------------------*/
+// ##########################################################################
+// 								MAIN FUNCTION
+// ##########################################################################
 
 int main(void)
 {
@@ -211,7 +75,6 @@ int main(void)
 	xTaskCreate( System_Display_Task, "System_Display", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( Traffic_Generator_Task, "Traffic_Generator", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
-
 	// Start the tasks and timer running
 	vTaskStartScheduler();
 
@@ -220,8 +83,9 @@ int main(void)
 	return 0;
 }
 
-/*-----------------------------------------------------------*/
-
+// ##########################################################################
+// 					INITIALIZATION FUNCTIONS AND TASKS
+// ##########################################################################
 static void GPIO_INIT()
 {
 	// First enable the GPIOC clock
@@ -271,7 +135,9 @@ static void ADC_INIT()
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_13, 1, ADC_SampleTime_144Cycles);
 }
 
-/*-----------------------------------------------------------*/
+// ##########################################################################
+// 					TRAFFIC LIGHT TASK AND FUNCTIONS
+// ##########################################################################
 
 static void Traffic_Light_Task( void *pvParameters )
 {
@@ -316,24 +182,15 @@ static void Turn_On_Green( uint16_t GLED )
 	GPIO_SetBits(GPIOC, GLED);
 }
 
-static uint16_t Time_Scale( uint16_t led )
-{
-	uint16_t pot_val = Get_ADC_Val();
-	if (led == GREEN_LED){
-		return pdMS_TO_TICKS(MIN_TIME) + ((pot_val * (pdMS_TO_TICKS(6000))) / 4095);
-	}
-	else {
-		return pdMS_TO_TICKS(MAX_TIME) - ((pot_val * (pdMS_TO_TICKS(6000))) / 4095);
-	}
-}
-
-/*-----------------------------------------------------------*/
+// ##########################################################################
+// 					SYSTEM DISPLAY TASK AND FUNCTIONS
+// ##########################################################################
 
 static void System_Display_Task( void *pvParameters )
 {
 	// Create a list of 19 cars.
-	// The first 8 cars (cars 0 to 7) are before the stop line and will stop on red.
-	// The next 11 cars (8 to 18) are after the stop line and don't get affected by the lights.
+	// The first 8 cars (cars 18 to 11) are before the stop line and will stop on red.
+	// The next 11 cars (10 to 0) are after the stop line and don't get affected by the lights.
 	int car_traffic[19] = {0};
 	int queued_cars = 0;
 	uint16_t traffic_light_status;
@@ -364,7 +221,7 @@ static void System_Display_Task( void *pvParameters )
 		} else {
 			// Else, shift cars according to what needs to be done on a red/yellow light
 			for (int i=8; i>0; i--){
-				// First 8 cars (0 to 7) stop before the lights
+				// First 8 cars (18 to 11) stop before the lights
 				if(!(car_traffic[i])){
 					// If next car is empty, shift current car to next position and set current position to empty
 					car_traffic[i] = car_traffic[i-1];
@@ -376,61 +233,33 @@ static void System_Display_Task( void *pvParameters )
 				car_traffic[i] = car_traffic[i-1];
 				car_traffic[i-1] = 0;
 			}
-
 		}
-		// Add car to the road.
-		/*if(xQueuePeek(xQueue_Cars, &queued_cars, 5000) == pdPASS)
-		{
-			if(queued_cars)
-			{
-				car_traffic[0] = 1;
-				xQueueOverwrite(xQueue_Cars, 0);
-			}
-		}*/
-
-
-//		xQueuePeek(xQueue_Cars, &car_traffic[0], 5000);
-//		xQueueOverwrite(xQueue_Cars, 0);
-		//car_traffic[0] = 1;
+		// Check if a car is coming and add it to the array
 		uint16_t car = 0;
-		BaseType_t cars_status = xQueueReceive(xQueue_Cars, &car, pdMS_TO_TICKS(100));
+		xQueueReceive(xQueue_Cars, &car, pdMS_TO_TICKS(100));
 		car_traffic[0] = 0;
-		if(cars_status == pdTRUE)
-		{
 			if(car == 1)
 			{
 				car_traffic[0] = 1;
 			}
-		}
+		
 		vTaskDelay(pdMS_TO_TICKS(500));
 	}
-
 }
+
+// ##########################################################################
+// 					TRAFFIC FLOW TASK AND FUNCTIONS
+// ##########################################################################
 
 static void Traffic_Flow_Task( void *pvParameters )
 {
-	for ( ;; )
+	while(1)
 	{
+		// Use the time scale function to determine the flow rate
+		// If the light is red for the maximum amount of time, flow is a gap of 5 between cars
+		// If the light is red for the minimum amount of time, flow is a gap of 0 between cars
 		uint16_t flow_rate = (uint16_t)(Time_Scale(RED_LED)/1000) - 3;
 		xQueueOverwrite(xQueue_Flow, &flow_rate);
-	}
-}
-
-static void Traffic_Generator_Task( void *pvParameters )
-{
-	uint16_t flow;
-	uint16_t car = 1;
-	BaseType_t status;
-
-	for ( ;; )
-	{
-		status = xQueuePeek(xQueue_Flow, &flow, 5000);
-
-		if(status == pdPASS)
-		{
-			xQueueOverwrite(xQueue_Cars, &car);
-			vTaskDelay(pdMS_TO_TICKS(500 * flow));
-		}
 	}
 }
 
@@ -441,7 +270,37 @@ static uint16_t Get_ADC_Val()
 	return ADC_GetConversionValue(ADC1);
 }
 
-/*-----------------------------------------------------------*/
+static uint16_t Time_Scale( uint16_t led )
+{
+	uint16_t pot_val = Get_ADC_Val();
+	if (led == GREEN_LED){
+		return pdMS_TO_TICKS(MIN_TIME) + ((pot_val * (pdMS_TO_TICKS(6000))) / 4095);
+	}
+	else {
+		return pdMS_TO_TICKS(MAX_TIME) - ((pot_val * (pdMS_TO_TICKS(6000))) / 4095);
+	}
+}
+
+// ##########################################################################
+// 					TRAFFIC GENERATOR TASK AND FUNCTIONS
+// ##########################################################################
+static void Traffic_Generator_Task( void *pvParameters )
+{
+	uint16_t flow;
+	uint16_t car = 1;
+	BaseType_t status;
+
+	while(1)
+	{
+		xQueuePeek(xQueue_Flow, &flow, 5000);
+		xQueueOverwrite(xQueue_Cars, &car);
+		vTaskDelay(pdMS_TO_TICKS(500 * flow));
+	}
+}
+
+// ##########################################################################
+// 						ERROR HANDLING FUNCTIONS
+// ##########################################################################
 
 void vApplicationMallocFailedHook( void )
 {
