@@ -1,5 +1,5 @@
 // Tay Munro V00965447
-// Jet Lam 	 V00
+// Jett Lam  V00959283
 
 // ##########################################################################
 // 			IMPORTS GLOBAL VARIABLES AND FUNCTION DECLARATIONS
@@ -192,7 +192,6 @@ static void System_Display_Task( void *pvParameters )
 	// The first 8 cars (cars 18 to 11) are before the stop line and will stop on red.
 	// The next 11 cars (10 to 0) are after the stop line and don't get affected by the lights.
 	int car_traffic[19] = {0};
-	int queued_cars = 0;
 	uint16_t traffic_light_status;
 	GPIO_SetBits(GPIOC, SHIFT_RESET);
 
@@ -288,7 +287,6 @@ static void Traffic_Generator_Task( void *pvParameters )
 {
 	uint16_t flow;
 	uint16_t car = 1;
-	BaseType_t status;
 
 	while(1)
 	{
