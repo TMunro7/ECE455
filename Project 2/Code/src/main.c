@@ -21,6 +21,21 @@
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
 
+/* Task structures */
+enum task_type {PERIODIC,APERIODIC};
+
+struct dd_task {
+	TaskHandle_t t_handle;
+	task_typetype;uint32_ttask_id;
+	uint32_trelease_time;
+	uint32_tabsolute_deadline;
+	uint32_tcompletion_time;
+};
+
+struct node {
+	dd_task *task;
+	struct node *next_task;
+};
 
 // ##########################################################################
 // 								MAIN FUNCTION
