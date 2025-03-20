@@ -21,6 +21,9 @@
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
 
+#define TASK_GENERATOR_PRIORITY  (tskIDLE_PRIORITY + 1)
+#define TASK_MONITOR_PRIORITY    (tskIDLE_PRIORITY + 1)
+
 /* Task structures */
 enum task_type {PERIODIC,APERIODIC};
 
@@ -43,14 +46,25 @@ struct node {
 
 int main(void)
 {
-
-
-	// Start the tasks and timer running
-	vTaskStartScheduler();
-
-	for ( ;; );
-
-	return 0;
+    
+    /* Initialize the DDS scheduler module */
+    init_dd_scheduler();
+    
+    /* Create the Task Generator, which periodically creates DD-Tasks */
+    xTaskCreate(vTaskGenerator, "TaskGen", configMINIMAL_STACK_SIZE, NULL, TASK_GENERATOR_PRIORITY, NULL);
+    
+    /* Create the Task Monitor, which reports system status periodically */
+    xTaskCreate(vTaskMonitor, "Monitor", configMINIMAL_STACK_SIZE, NULL, TASK_MONITOR_PRIORITY, NULL);
+    
+    /* Create any additional user-defined tasks here */
+    
+    /* Start the FreeRTOS scheduler */
+    vTaskStartScheduler();
+    
+    /* Should never reach here since vTaskStartScheduler only returns on error */
+    for(;;);
+    
+    return 0;
 }
 
 
