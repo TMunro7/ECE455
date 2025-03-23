@@ -5,6 +5,12 @@
 #include "task.h"
 
 /* Task Generator Task function prototype */
-void vTaskGenerator(void *pvParameters);
+void Task1(void *pvParameters);
+void Task2(void *pvParameters);
+void Task3(void *pvParameters);
+
+void Task1GenCallback(TimerHandle_t pxTimer);
+void Task2GenCallback(TimerHandle_t pxTimer);
+void Task3GenCallback(TimerHandle_t pxTimer);
 
 #endif /* TASK_GENERATOR_H */
