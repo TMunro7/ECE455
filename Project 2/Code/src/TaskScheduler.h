@@ -6,6 +6,8 @@
 #include "queue.h"
 #include <stdint.h>
 
+//NEED THIS STUFF FROM LINE 10-32
+
 /* Define the two possible task types */
 typedef enum {
     PERIODIC,
