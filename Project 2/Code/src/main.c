@@ -23,22 +23,15 @@
 
 #define TASK_GENERATOR_PRIORITY  (tskIDLE_PRIORITY + 1)
 #define TASK_MONITOR_PRIORITY    (tskIDLE_PRIORITY + 1)
+#define TEST_BENCH_NUMBER = 1 // Change this to the number of the test bench you are running
 
-/* Task structures */
-enum task_type {PERIODIC,APERIODIC};
+volatile uint32_t ExecutionTime1;
+volatile uint32_t Period1;
+volatile uint32_t ExecutionTime2;
+volatile uint32_t Perioid2;
+volatile uint32_t ExecutionTime3;
+volatile uint32_t Period;
 
-struct dd_task {
-	TaskHandle_t t_handle;
-	task_typetype;uint32_ttask_id;
-	uint32_trelease_time;
-	uint32_tabsolute_deadline;
-	uint32_tcompletion_time;
-};
-
-struct node {
-	dd_task *task;
-	struct node *next_task;
-};
 
 // ##########################################################################
 // 								MAIN FUNCTION
@@ -47,6 +40,7 @@ struct node {
 int main(void)
 {
     
+	test_bench_init(TEST_BENCH_NUMBER);
     /* Initialize the DDS scheduler module */
     init_dd_scheduler();
     
@@ -65,6 +59,35 @@ int main(void)
     for(;;);
     
     return 0;
+}
+
+void test_bench_init(int test_bench_number)
+{
+	if(test_bench_number == 1){
+		ExecutionTime1 = 95;
+		ExecutionTime2 = 150;
+		ExecutionTime3 250;
+		Period1 = 500;
+		Perioid2 = 500;
+		Period = 750;
+	}
+	if(test_bench_number == 2){
+		ExecutionTime1 = 95;
+		ExecutionTime2 = 150;
+		ExecutionTime3 = 250;
+		Period1 = 250;
+		Perioid2 = 500;
+		Period = 750;
+	}
+	if(test_bench_number == 3){
+		ExecutionTime1 = 100;
+		ExecutionTime2 = 200;
+		ExecutionTime3 = 200;
+		Period1 = 500;
+		Perioid2 = 500;
+		Period = 500;
+	}
+
 }
 
 

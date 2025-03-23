@@ -1,24 +1,15 @@
 #include "TaskMonitor.h"
-#include "TaskScheduler.h"  // This header should declare the get_* functions and dd_task_list structure
+#include "TaskScheduler.h" 
 #include "FreeRTOS.h"
 #include "task.h"
 #include <stdio.h>
 
-/* 
- * Helper function to count the number of DD-Tasks in a linked list.
- * It iterates through the list until it reaches a NULL pointer.
- */
-static uint32_t count_tasks(dd_task_list *list)
-{
-    uint32_t count = 0;
-    dd_task_list *current = list;
-    while (current != NULL)
-    {
-        count++;
-        current = current->next_task;
-    }
-    return count;
-}
+volatile int EXPECTED_OVERDUE;
+volatile int EXPECTED_COMPLETE;
+volatile int EXPECTED_ACTIVE;
+volatile dd_task_list *active_task_list;
+volatile dd_task_list *completed_task_list;
+volatile dd_task_list *overdue_task_list;
 
 /*
  * The Monitor Task.
@@ -27,28 +18,32 @@ static uint32_t count_tasks(dd_task_list *list)
  */
 void vTaskMonitor(void *pvParameters)
 {
-    /* Suppress compiler warning if pvParameters is not used */
-    (void)pvParameters;
-    
-    while (1)
-    {
-        /* Retrieve the DD-Task lists from the scheduler */
-        dd_task_list *activeList   = get_active_dd_task_list();
-        dd_task_list *completeList = get_complete_dd_task_list();
-        dd_task_list *overdueList  = get_overdue_dd_task_list();
-
-        /* Count the tasks in each list */
-        uint32_t activeCount   = count_tasks(activeList);
-        uint32_t completeCount = count_tasks(completeList);
-        uint32_t overdueCount  = count_tasks(overdueList);
-
-        /* Report the current status to the console */
-        printf("Monitor: Active: %lu, Completed: %lu, Overdue: %lu\n",
-               (unsigned long)activeCount,
-               (unsigned long)completeCount,
-               (unsigned long)overdueCount);
-
-        /* Delay before the next monitoring period (e.g., 1000ms) */
-        vTaskDelay(pdMS_TO_TICKS(1000));
+ printf("Task Monitor Started\n");
+    for(;;) {
+        active_task_list = get_active_dd_task_list();
+        completed_task_list = get_complete_dd_task_list();
+        overdue_task_list = get_overdue_dd_task_list();
+        EXPECTED_OVERDUE = 0;
+        EXPECTED_COMPLETE = 0;
+        EXPECTED_ACTIVE = 0;
+        dd_task_list *temp = overdue_task_list;
+        while(temp != NULL) {
+            EXPECTED_OVERDUE++;
+            temp = temp->next_task;
+        }
+        temp = completed_task_list;
+        while(temp != NULL) {
+            EXPECTED_COMPLETE++;
+            temp = temp->next_task;
+        }
+        temp = active_task_list;
+        while (temp != NULL)
+        {
+            EXPECTED_ACTIVE++;
+            temp = temp->next_task;
+        }
+        
+        printf("Active: %d, Overdue: %d, Complete: %d\n", EXPECTED_ACTIVE, EXPECTED_OVERDUE, EXPECTED_COMPLETE);
+        vTaskDelay(pdMS_TO_TICKS(MONITOR_PERIOD));
     }
 }
