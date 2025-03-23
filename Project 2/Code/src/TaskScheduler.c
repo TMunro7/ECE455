@@ -4,283 +4,102 @@
 #include "queue.h"
 #include <stdio.h>
 
-/* DDS task priority and message queue parameters */
-#define DDS_TASK_PRIORITY      (configMAX_PRIORITIES - 1)
-#define DDS_QUEUE_LENGTH       10
+volatile dd_task_list *active_tasks;
+volatile dd_task_list *completed_tasks;
+volatile dd_task_list *overdue_tasks;
 
-/* Define priorities for user-defined F-Tasks. The scheduler assigns:
-   - F_TASK_HIGH_PRIORITY: to the task with the earliest deadline
-   - F_TASK_LOW_PRIORITY: to all other tasks
-*/
-#define F_TASK_HIGH_PRIORITY   (configMAX_PRIORITIES - 2)
-#define F_TASK_LOW_PRIORITY    (configMAX_PRIORITIES - 3)
+volatile dd_task *cur_task = NULL;
+volatile uint32_t cur_tick;
 
-/* Message types for DDS communication */
-typedef enum {
-    MSG_RELEASE_TASK,
-    MSG_COMPLETE_TASK,
-    MSG_GET_ACTIVE_LIST,
-    MSG_GET_COMPLETED_LIST,
-    MSG_GET_OVERDUE_LIST
-} dd_msg_type;
+volatile int BENCH_1_RELEASE_VALUES[3][13] = {
+    {0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000},
+    {0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000},
+    {0, 750, 1500, 2250, 3000, 3750, 4500, 5250, 6000}
+};
+volatile int BENCH_1_COMPLETED_VALUES[3][13] = {
+    {95, 595, 1095, 1595, 2095, 2595, 3095, 3595, 4095, 4595, 5095, 5595, 6095},
+    {245, 745, 1245, 1745, 2245, 2745, 3245, 3745, 4245, 4745, 5245, 5745, 6245},
+    {495, 1000, 1995, 2500, 3495, 4000, 4995, 5500, 6495}
+};
 
-/* Structure for messages sent to the DDS task */
-typedef struct {
-    dd_msg_type type;
-    union {
-        struct {
-            TaskHandle_t t_handle;
-            task_type type;
-            uint32_t task_id;
-            uint32_t absolute_deadline;
-        } release;
-        struct {
-            uint32_t task_id;
-        } complete;
-    } data;
-    QueueHandle_t responseQueue;  // Used for GET requests to return the list pointer
-} dd_msg;
+volatile int TASK_RELEASE_COUNT[3] = {0, 0, 0};
+volatile int TASK_COMPLETED_COUNT[3] = {0, 0, 0};
+volatile int EVENT_NUM = 1;
 
-/* Global variables for the DDS */
-static QueueHandle_t ddQueue = NULL;
-static dd_task_list *activeList = NULL;
-static dd_task_list *completedList = NULL;
-static dd_task_list *overdueList = NULL;
-
-/* Inserts a new DD-Task into the active list in sorted order (by absolute_deadline) */
-static void insert_task_sorted(dd_task new_task)
-{
-    dd_task_list *newNode = pvPortMalloc(sizeof(dd_task_list));
-    if(newNode == NULL) {
-        /* Handle memory allocation failure if needed */
-        return;
+void DDScheduler(void *pvParameters) {
+    if (MONITOR_OR_DEBUG == 1) {
+        printf("Begin scheduling.\n");
     }
-    newNode->task = new_task;
-    newNode->next_task = NULL;
-    
-    if(activeList == NULL || new_task.absolute_deadline < activeList->task.absolute_deadline) {
-        newNode->next_task = activeList;
-        activeList = newNode;
-    } else {
-        dd_task_list *curr = activeList;
-        while(curr->next_task != NULL && 
-              curr->next_task->task.absolute_deadline <= new_task.absolute_deadline) {
-            curr = curr->next_task;
-        }
-        newNode->next_task = curr->next_task;
-        curr->next_task = newNode;
-    }
-}
 
-/* Removes and returns a node from activeList that matches task_id */
-static dd_task_list* remove_task_from_active(uint32_t task_id)
-{
-    dd_task_list *prev = NULL;
-    dd_task_list *curr = activeList;
-    while(curr != NULL) {
-        if(curr->task.task_id == task_id) {
-            if(prev == NULL) {
-                activeList = curr->next_task;
+    while (1) {
+        dd_task *new_task;
+        uint32_t *completed_task_id;
+        cur_tick = xTaskGetTickCount();
+
+        if (xQueueReceive(xQueue_Completed, &completed_task_id, 0) == pdTRUE && completed_task_id != NULL && cur_task != NULL) {
+            if (completed_task_id == cur_task->task_id) {
+                dd_task *removed_task = removed_from_list((volatile dd_task_list **) &active_tasks, completed_task_id);
+                removed_tasks->completion_time = cur_tick;
+                vTaskDelete(cur_task->t_handle);
+
+                if (MONITOR_OR_DEBUG == 1) {
+                    if (TEST_BENCH == 1) {
+                        printf("%d Task %d completed: %d Ex: %d\n", EVENT_NUMBER, completed_task_id, removed_task->completion_time, BENCH_1_COMPLETED_VALUES[removed_task->task_id - 1][TASK_COMPLETED_COUNT[removed_task->task_id - 1]]);
+                        TASK_COMPLETED_COUNT[removed_task->task_id - 1] += 1;
+                    } else {
+                        printf("%d Task %d completed: %d\n", EVENT_NUMBER, completed_task_id, removed_task->completion_time);
+                    }
+                }
+
+                push_to_list((volatile dd_task_list **) &completed_tasks, removed_task);
+                EVENT_NUM += 1;
+                cur_task = NULL;
+            
             } else {
-                prev->next_task = curr->next_task;
-            }
-            curr->next_task = NULL; // detach node
-            return curr;
-        }
-        prev = curr;
-        curr = curr->next_task;
-    }
-    return NULL;
-}
-
-/* Adjusts the priorities of tasks in the active list:
-   - The task with the earliest deadline gets high priority.
-   - All others get low priority.
-*/
-static void adjust_priorities(void)
-{
-    dd_task_list *node = activeList;
-    if(node != NULL) {
-        if(node->task.t_handle != NULL) {
-            vTaskPrioritySet(node->task.t_handle, F_TASK_HIGH_PRIORITY);
-        }
-        node = node->next_task;
-        while(node != NULL) {
-            if(node->task.t_handle != NULL) {
-                vTaskPrioritySet(node->task.t_handle, F_TASK_LOW_PRIORITY);
-            }
-            node = node->next_task;
-        }
-    }
-}
-
-/* Checks the active list for any tasks that have missed their deadlines and moves them to the overdue list */
-static void check_overdue_tasks(void)
-{
-    TickType_t current_tick = xTaskGetTickCount();
-    dd_task_list *prev = NULL;
-    dd_task_list *curr = activeList;
-    while(curr != NULL) {
-        if(curr->task.absolute_deadline < current_tick) {
-            dd_task_list *overdueNode = curr;
-            if(prev == NULL) {
-                activeList = curr->next_task;
-                curr = activeList;
-            } else {
-                prev->next_task = curr->next_task;
-                curr = prev->next_task;
-            }
-            overdueNode->next_task = overdueList;
-            overdueList = overdueNode;
-        } else {
-            prev = curr;
-            curr = curr->next_task;
-        }
-    }
-}
-
-/* The main DDS task. It waits on the ddQueue for messages and processes them accordingly. */
-static void vTaskScheduler(void *pvParameters)
-{
-    dd_msg msg;
-    (void) pvParameters;
-    
-    for(;;) {
-        if(xQueueReceive(ddQueue, &msg, portMAX_DELAY) == pdTRUE) {
-            switch(msg.type) {
-                case MSG_RELEASE_TASK:
-                {
-                    dd_task new_task;
-                    new_task.t_handle = msg.data.release.t_handle;
-                    new_task.type = msg.data.release.type;
-                    new_task.task_id = msg.data.release.task_id;
-                    new_task.release_time = xTaskGetTickCount();
-                    new_task.absolute_deadline = msg.data.release.absolute_deadline;
-                    new_task.completion_time = 0;
-                    
-                    insert_task_sorted(new_task);
-                    adjust_priorities();
-                    break;
-                }
-                case MSG_COMPLETE_TASK:
-                {
-                    dd_task_list *completedNode = remove_task_from_active(msg.data.complete.task_id);
-                    if(completedNode != NULL) {
-                        completedNode->task.completion_time = xTaskGetTickCount();
-                        completedNode->next_task = completedList;
-                        completedList = completedNode;
-                    }
-                    adjust_priorities();
-                    break;
-                }
-                case MSG_GET_ACTIVE_LIST:
-                {
-                    if(msg.responseQueue != NULL) {
-                        xQueueSend(msg.responseQueue, &activeList, portMAX_DELAY);
-                    }
-                    break;
-                }
-                case MSG_GET_COMPLETED_LIST:
-                {
-                    if(msg.responseQueue != NULL) {
-                        xQueueSend(msg.responseQueue, &completedList, portMAX_DELAY);
-                    }
-                    break;
-                }
-                case MSG_GET_OVERDUE_LIST:
-                {
-                    if(msg.responseQueue != NULL) {
-                        xQueueSend(msg.responseQueue, &overdueList, portMAX_DELAY);
-                    }
-                    break;
-                }
-                default:
-                    break;
+                printf("Error: task scheduler failed at line 58");
             }
         }
-        /* After processing a message, check for overdue tasks and update priorities */
-        check_overdue_tasks();
-        adjust_priorities();
+
+        if (xQueueReceive(xQueue_Tasks, &new_task, 0) == pdTRUE && new_task != NULL) {
+            if (MONITOR_OR_DEBUG == 1) {
+                if (TEST_BENCH == 1) {
+                    printf("%d Task %d released:  %d Ex: %d\n", EVENT_NUMBER, new_task->task_id, current_tick, TB_1_RELEASE_VALUES[new_task->task_id - 1][TASK_RELEASE_COUNT[new_task->task_id - 1]]);
+					TASK_RELEASE_COUNT[new_task->task_id - 1] += 1;
+				} else {
+					printf("%d Task %d released:  %d\n", EVENT_NUMBER, new_task->task_id, current_tick);
+				}
+            }
+
+            push_to_list_edf((volatile dd_task_list **) &active_tasks, new_task);
+            EVENT_NUM += 1;
+        }
+
+        if (cur_task != NULL && cur_tick > cur_task->deadline) {
+            if (MONITOR_OR_DEBUG == 1) {
+                printf("Task %d OVERDUE: %d DL: %d\n", current_task->task_id, current_tick, current_task->absolute_deadline);
+            }
+            dd_task *removed_task = remove_from_list((volatile dd_task_list **) &active_tasks, cur_task->task_id);
+            vTaskDelete(cur_task->t_handle);
+            push_to_list((volatile dd_task_list **) &overdue_tasks, removed_task);
+            EVENT_NUM += 1;
+            cur_task = NULL
+        }
+
+        dd_task *first_task = NULL;
+        if (active_tasks != NULL) {
+            first_task = active_tasks->task;
+
+            if (first_task != NULL && cur_task !- NULL && first_task->deadline < cur_task->deadline) {
+                vTaskPrioritySet(cur_task->t_handle, tskIDLE_PRIORITY);
+                PREEMPTED[cur_task->task_id - 1] = 1;
+                cur_task = first_task;
+                vTaskPrioritySet(frist_task->t_handle, configMAX_PRIORITIES - 2);
+            }
+
+            if (first_task != NULL && cur_task == NULL) {
+                cur_task = first_task;
+                vTaskPrioritySet(cur_task->t_handle, configMAX_PRIORITIES - 2);
+            }
+        }
     }
-}
-
-/* Public API function to create a new DD-Task.
-   This function packages the task information in a message and sends it to the DDS queue.
-*/
-void release_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t absolute_deadline)
-{
-    dd_msg msg;
-    msg.type = MSG_RELEASE_TASK;
-    msg.data.release.t_handle = t_handle;
-    msg.data.release.type = type;
-    msg.data.release.task_id = task_id;
-    msg.data.release.absolute_deadline = absolute_deadline;
-    msg.responseQueue = NULL;
-    
-    xQueueSend(ddQueue, &msg, portMAX_DELAY);
-}
-
-/* Public API function indicating that a DD-Task has completed its execution.
-   It sends a message to the DDS to update the DD-Task lists.
-*/
-void complete_dd_task(uint32_t task_id)
-{
-    dd_msg msg;
-    msg.type = MSG_COMPLETE_TASK;
-    msg.data.complete.task_id = task_id;
-    msg.responseQueue = NULL;
-    
-    xQueueSend(ddQueue, &msg, portMAX_DELAY);
-}
-
-/* Returns the pointer to the active DD-Task list.
-   This function uses a temporary response queue to obtain the list pointer from the DDS.
-*/
-dd_task_list* get_active_dd_task_list(void)
-{
-    dd_msg msg;
-    dd_task_list *list = NULL;
-    msg.type = MSG_GET_ACTIVE_LIST;
-    msg.responseQueue = xQueueCreate(1, sizeof(dd_task_list*));
-    xQueueSend(ddQueue, &msg, portMAX_DELAY);
-    xQueueReceive(msg.responseQueue, &list, portMAX_DELAY);
-    vQueueDelete(msg.responseQueue);
-    return list;
-}
-
-/* Returns the pointer to the completed DD-Task list */
-dd_task_list* get_complete_dd_task_list(void)
-{
-    dd_msg msg;
-    dd_task_list *list = NULL;
-    msg.type = MSG_GET_COMPLETED_LIST;
-    msg.responseQueue = xQueueCreate(1, sizeof(dd_task_list*));
-    xQueueSend(ddQueue, &msg, portMAX_DELAY);
-    xQueueReceive(msg.responseQueue, &list, portMAX_DELAY);
-    vQueueDelete(msg.responseQueue);
-    return list;
-}
-
-/* Returns the pointer to the overdue DD-Task list */
-dd_task_list* get_overdue_dd_task_list(void)
-{
-    dd_msg msg;
-    dd_task_list *list = NULL;
-    msg.type = MSG_GET_OVERDUE_LIST;
-    msg.responseQueue = xQueueCreate(1, sizeof(dd_task_list*));
-    xQueueSend(ddQueue, &msg, portMAX_DELAY);
-    xQueueReceive(msg.responseQueue, &list, portMAX_DELAY);
-    vQueueDelete(msg.responseQueue);
-    return list;
-}
-
-/* Initializes the DDS module by creating the message queue and starting the scheduler task */
-void init_dd_scheduler(void)
-{
-    ddQueue = xQueueCreate(DDS_QUEUE_LENGTH, sizeof(dd_msg));
-    if(ddQueue == NULL) {
-        printf("Failed to create DDS queue\n");
-        return;
-    }
-    xTaskCreate(vTaskScheduler, "DDS", configMINIMAL_STACK_SIZE, NULL, DDS_TASK_PRIORITY, NULL);
 }

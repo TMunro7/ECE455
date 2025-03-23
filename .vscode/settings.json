@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "taskscheduler.h": "c",
+        "taskgenerator.h": "c"
+    }
+}
