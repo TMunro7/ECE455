@@ -26,6 +26,20 @@ volatile int TASK_RELEASE_COUNT[3] = {0, 0, 0};
 volatile int TASK_COMPLETED_COUNT[3] = {0, 0, 0};
 volatile int EVENT_NUM = 1;
 
+
+struct dd_task_list *get_active_dd_task_list(void) {
+    return active_tasks;
+}
+
+struct dd_task_list *get_complete_dd_task_list(void) {
+    return completed_tasks;
+}
+
+struct dd_task_list *get_overdue_dd_task_list(void) {
+    return overdue_tasks;
+}
+
+
 void DDScheduler(void *pvParameters) {
     if (MONITOR_OR_DEBUG == 1) {
         printf("Begin scheduling.\n");
@@ -101,5 +115,118 @@ void DDScheduler(void *pvParameters) {
                 vTaskPrioritySet(cur_task->t_handle, configMAX_PRIORITIES - 2);
             }
         }
+    }
+}
+
+
+void create_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uint32_t release, uint32_t deadline) {
+    dd_task *task = (dd_task *)pvPortMalloc(sizeof(dd_task));
+
+    if (task == NULL) {
+        printf("Failed to create task.\n");
+        return;
+    }
+
+    task->t_handle = t_handle;
+    task->type = type;
+    task->task_id = task_id;
+    task->release = pdMS_TO_TICKS(release);
+    task->deadline = pdMS_TO_TICKS(deadline);
+    task->remaining = 0;
+
+    xQueueSend(xQueue_Tasks, &task, 0);
+}
+
+
+void delete_dd_task(uint32_t task_id) {
+    xQueueSend(xQueue_Completed, &task_id, 50);
+}
+
+
+void push_to_list(volatile dd_task_list **list, dd_task *new_task) {
+    dd_task_list *new_node = (dd_task_list *)malloc(sizeof(dd_task_list));
+    if (new_node == NULL) {
+        return;
+    }
+
+    new_node->task = new_task;
+    new_node->next_task = NULL;
+
+    if (*list == NULL) {
+        *list = new_node;
+        return;
+    }
+
+    dd_task_list *cur = *list;
+    while (cur->next_task != NULL) {
+        cur = cur->next_task;
+    }
+
+    cur->next_task = new_node;
+}
+
+
+void push_to_list_edf(volatile dd_task_list **list, dd_task *new_task) {
+    dd_task_list *new_node = (dd_task_list *)malloc(sizeof(dd_task_list));
+    if (new_node == NULL) {
+        return;
+    }
+
+    new_node->task = new_task;
+    new_node->next_task = NULL;
+
+    if (*list == NULL || (*list)->task->deadline > new_task->deadline) {
+        new_node->next_task = *list;
+        *list = new_node;
+        return;
+    }
+
+    dd_task_list *cur = *list;
+    while (cur->next_task != NULL) {
+        dd_task_list *check = cur->next_task;
+        if (check->task->deadline > new_task->deadline) {
+            break;
+        } else {
+            cur = cur->next_task;
+        }
+    }
+
+    new_node->next_task = cur->next_task;
+    cur->next_task = new_node;
+}
+
+
+dd_task* remove_from_list(volatile dd_task_list **list, uint32_t task_id) {
+    dd_task_list *cur = *list;
+    dd_task_list *prev = NULL;
+    dd_task *removed_task = NULL;
+
+    while (cur != NULL && cur->task->task_id != task_id) {
+        prev = cur;
+        cur = cur->next_task;
+    }
+
+    if (cur != NULL) {
+        if (prev != NULL) {
+            prev->next_task = cur->next_task;
+        } else {
+            *list = cur->next_task;
+        }
+
+        removed_task = cur->task;
+        free(cur);
+    } else {
+        prinf("Task %d not found in list.\n", task_id);
+    }
+
+    return removed_task;
+}
+
+
+void print_list(const volatile dd_task_list *list) {
+    const dd_task_list *cur = list;
+    while (cur !=  NULL) {
+        printf("Rel: %d, Comp: %d, Ded: %d\n", cur->task->release, cur->task->completion, cur->task->deadline);
+        cur = cur->next_task;
     }
 }

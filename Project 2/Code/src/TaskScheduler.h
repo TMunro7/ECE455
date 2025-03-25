@@ -6,19 +6,9 @@
 #include "queue.h"
 #include <stdint.h>
 
-<<<<<<< HEAD
 void DDScheduler(void *pvParameters);
 void create_dd_task(TaskHandle_t task_h, task_type type, uint32_t task_id, uint32_t release, uint32_t deadline);
 void delete_dd_task(uint32_t task_id);
-=======
-//NEED THIS STUFF FROM LINE 10-32
-
-/* Define the two possible task types */
-typedef enum {
-    PERIODIC,
-    APERIODIC
-} task_type;
->>>>>>> dfe923a03919ae491dbffad9e3b2fa7c54d540c8
 
 struct dd_task_list *get_active_dd_task_list(void);
 struct dd_task_list *get_complete_dd_task_list(void);
