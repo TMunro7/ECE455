@@ -3,6 +3,8 @@
 
 #include "FreeRTOS.h"
 #include "task.h"
+#include "setup.h"
+#include "../FreeRTOS_Source/include/timers.h"
 
 /* Task Generator Task function prototype */
 void Task1(void *pvParameters);

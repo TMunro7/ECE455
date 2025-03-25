@@ -2,7 +2,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
-#include <stdio.h>
+#include "setup.h"
 
 volatile dd_task_list *active_tasks;
 volatile dd_task_list *completed_tasks;
@@ -52,16 +52,16 @@ void DDScheduler(void *pvParameters) {
 
         if (xQueueReceive(xQueue_Completed, &completed_task_id, 0) == pdTRUE && completed_task_id != NULL && cur_task != NULL) {
             if (completed_task_id == cur_task->task_id) {
-                dd_task *removed_task = removed_from_list((volatile dd_task_list **) &active_tasks, completed_task_id);
-                removed_tasks->completion_time = cur_tick;
+                dd_task *removed_task = remove_from_list((volatile dd_task_list **) &active_tasks, completed_task_id);
+                removed_task->completion = cur_tick;
                 vTaskDelete(cur_task->t_handle);
 
                 if (MONITOR_OR_DEBUG == 1) {
                     if (TEST_BENCH == 1) {
-                        printf("%d Task %d completed: %d Ex: %d\n", EVENT_NUMBER, completed_task_id, removed_task->completion_time, BENCH_1_COMPLETED_VALUES[removed_task->task_id - 1][TASK_COMPLETED_COUNT[removed_task->task_id - 1]]);
+                        printf("%d Task %d completed: %d Ex: %d\n", EVENT_NUM, (int)completed_task_id, (int)removed_task->completion, BENCH_1_COMPLETED_VALUES[removed_task->task_id - 1][TASK_COMPLETED_COUNT[removed_task->task_id - 1]]);
                         TASK_COMPLETED_COUNT[removed_task->task_id - 1] += 1;
                     } else {
-                        printf("%d Task %d completed: %d\n", EVENT_NUMBER, completed_task_id, removed_task->completion_time);
+                        printf("%d Task %d completed: %d\n", EVENT_NUM, (int)completed_task_id, (int)removed_task->completion);
                     }
                 }
 
@@ -77,10 +77,10 @@ void DDScheduler(void *pvParameters) {
         if (xQueueReceive(xQueue_Tasks, &new_task, 0) == pdTRUE && new_task != NULL) {
             if (MONITOR_OR_DEBUG == 1) {
                 if (TEST_BENCH == 1) {
-                    printf("%d Task %d released:  %d Ex: %d\n", EVENT_NUMBER, new_task->task_id, current_tick, TB_1_RELEASE_VALUES[new_task->task_id - 1][TASK_RELEASE_COUNT[new_task->task_id - 1]]);
+                    printf("%d Task %d released:  %d Ex: %d\n", EVENT_NUM, (int)new_task->task_id, (int)cur_tick, BENCH_1_RELEASE_VALUES[new_task->task_id - 1][TASK_RELEASE_COUNT[new_task->task_id - 1]]);
 					TASK_RELEASE_COUNT[new_task->task_id - 1] += 1;
 				} else {
-					printf("%d Task %d released:  %d\n", EVENT_NUMBER, new_task->task_id, current_tick);
+					printf("%d Task %d released:  %d\n", EVENT_NUM, (int)new_task->task_id, (int)cur_tick);
 				}
             }
 
@@ -90,24 +90,24 @@ void DDScheduler(void *pvParameters) {
 
         if (cur_task != NULL && cur_tick > cur_task->deadline) {
             if (MONITOR_OR_DEBUG == 1) {
-                printf("Task %d OVERDUE: %d DL: %d\n", current_task->task_id, current_tick, current_task->absolute_deadline);
+                printf("Task %d OVERDUE: %d DL: %d\n", (int)cur_task->task_id, (int)cur_tick, (int)cur_task->deadline);
             }
             dd_task *removed_task = remove_from_list((volatile dd_task_list **) &active_tasks, cur_task->task_id);
             vTaskDelete(cur_task->t_handle);
             push_to_list((volatile dd_task_list **) &overdue_tasks, removed_task);
             EVENT_NUM += 1;
-            cur_task = NULL
+            cur_task = NULL;
         }
 
         dd_task *first_task = NULL;
         if (active_tasks != NULL) {
             first_task = active_tasks->task;
 
-            if (first_task != NULL && cur_task !- NULL && first_task->deadline < cur_task->deadline) {
+            if (first_task != NULL && cur_task != NULL && first_task->deadline < cur_task->deadline) {
                 vTaskPrioritySet(cur_task->t_handle, tskIDLE_PRIORITY);
                 PREEMPTED[cur_task->task_id - 1] = 1;
                 cur_task = first_task;
-                vTaskPrioritySet(frist_task->t_handle, configMAX_PRIORITIES - 2);
+                vTaskPrioritySet(first_task->t_handle, configMAX_PRIORITIES - 2);
             }
 
             if (first_task != NULL && cur_task == NULL) {
@@ -132,7 +132,7 @@ void create_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uin
     task->task_id = task_id;
     task->release = pdMS_TO_TICKS(release);
     task->deadline = pdMS_TO_TICKS(deadline);
-    task->remaining = 0;
+    task->completion = 0;
 
     xQueueSend(xQueue_Tasks, &task, 0);
 }
@@ -216,7 +216,7 @@ dd_task* remove_from_list(volatile dd_task_list **list, uint32_t task_id) {
         removed_task = cur->task;
         free(cur);
     } else {
-        prinf("Task %d not found in list.\n", task_id);
+        printf("Task %d not found in list.\n", (int)task_id);
     }
 
     return removed_task;
@@ -226,7 +226,7 @@ dd_task* remove_from_list(volatile dd_task_list **list, uint32_t task_id) {
 void print_list(const volatile dd_task_list *list) {
     const dd_task_list *cur = list;
     while (cur !=  NULL) {
-        printf("Rel: %d, Comp: %d, Ded: %d\n", cur->task->release, cur->task->completion, cur->task->deadline);
+        printf("Rel: %d, Comp: %d, Ded: %d\n", (int)cur->task->release, (int)cur->task->completion, (int)cur->task->deadline);
         cur = cur->next_task;
     }
 }

@@ -2,12 +2,13 @@
 #include "TaskScheduler.h"  // Assumes this header declares release_dd_task and related types.
 #include "FreeRTOS.h"
 #include "task.h"
+#include "setup.h"
 
 void Task1(void *pvParameters) {
     TickType_t start = xTaskGetTickCount();
     TickType_t cur;
     TickType_t elapsed = 0;
-    TickType_t remaining = pdMS_TO_TICKS(TASK1_TIME);
+    TickType_t remaining = pdMS_TO_TICKS(ExecutionTime1);
 
     while (elapsed < remaining) {
         if (PREEMPTED[0]) {
@@ -28,7 +29,7 @@ void Task2(void *pvParameters) {
     TickType_t start = xTaskGetTickCount();
     TickType_t cur;
     TickType_t elapsed = 0;
-    TickType_t remaining = pdMS_TO_TICKS(TASK2_TIME);
+    TickType_t remaining = pdMS_TO_TICKS(ExecutionTime2);
 
     while (elapsed < remaining) {
         if (PREEMPTED[1]) {
@@ -49,7 +50,7 @@ void Task3(void *pvParameters) {
     TickType_t start = xTaskGetTickCount();
     TickType_t cur;
     TickType_t elapsed = 0;
-    TickType_t remaining = pdMS_TO_TICKS(TASK1_TIME);
+    TickType_t remaining = pdMS_TO_TICKS(ExecutionTime1);
 
     while (elapsed < remaining) {
         if (PREEMPTED[2]) {
@@ -72,10 +73,10 @@ void Task1GenCallback(TimerHandle_t pxTimer) {
 
     if (task != NULL) {
         TickType_t cur = xTaskGetTickCount();
-        create_dd_task(task, PERIODIC, 1, cur, cur+pdMS_TO_TICKS(TASK1_PERIOD));
+        create_dd_task(task, PERIODIC, 1, cur, cur+pdMS_TO_TICKS(Period1));
     }
 
-    xTimerChangePeriod(pxTimer, pdMS_TO_TICKS(TASK1_PERIOD), 0);
+    xTimerChangePeriod(pxTimer, pdMS_TO_TICKS(Period1), 0);
     xTimerStart(pxTimer, 0);
 }
 
@@ -86,10 +87,10 @@ void Task2GenCallback(TimerHandle_t pxTimer) {
 
     if (task != NULL) {
         TickType_t cur = xTaskGetTickCount();
-        create_dd_task(task, PERIODIC, 2, cur, cur+pdMS_TO_TICKS(TASK2_PERIOD));
+        create_dd_task(task, PERIODIC, 2, cur, cur+pdMS_TO_TICKS(Period2));
     }
 
-    xTimerChangePeriod(pxTimer, pdMS_TO_TICKS(TASK2_PERIOD), 0);
+    xTimerChangePeriod(pxTimer, pdMS_TO_TICKS(Period2), 0);
     xTimerStart(pxTimer, 0);
 }
 
@@ -100,9 +101,9 @@ void Task3GenCallback(TimerHandle_t pxTimer) {
 
     if (task != NULL) {
         TickType_t cur = xTaskGetTickCount();
-        create_dd_task(task, PERIODIC, 3, cur, cur+pdMS_TO_TICKS(TASK3_PERIOD));
+        create_dd_task(task, PERIODIC, 3, cur, cur+pdMS_TO_TICKS(Period3));
     }
 
-    xTimerChangePeriod(pxTimer, pdMS_TO_TICKS(TASK3_PERIOD), 0);
+    xTimerChangePeriod(pxTimer, pdMS_TO_TICKS(Period3), 0);
     xTimerStart(pxTimer, 0);
 }

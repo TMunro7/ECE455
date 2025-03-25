@@ -6,12 +6,10 @@
 // ##########################################################################
 
 /* Standard includes. */
-#include <stdint.h>
-#include <stdio.h>
-#include <unistd.h>
-#include "stm32f4_discovery.h"
-#include "stm32f4xx_adc.h"
-#include "stm32f4xx_gpio.h"
+#include "TaskMonitor.h"
+#include "TaskGenerator.h"
+#include "TaskScheduler.h"
+#include "setup.h"
 
 /* Kernel includes. */
 #include "stm32f4xx.h"
@@ -23,14 +21,9 @@
 
 #define TASK_GENERATOR_PRIORITY  (tskIDLE_PRIORITY + 1)
 #define TASK_MONITOR_PRIORITY    (tskIDLE_PRIORITY + 1)
-#define TEST_BENCH_NUMBER = 1 // Change this to the number of the test bench you are running
+#define TEST_BENCH_NUMBER 1 // Change this to the number of the test bench you are running
 
-volatile uint32_t ExecutionTime1;
-volatile uint32_t Period1;
-volatile uint32_t ExecutionTime2;
-volatile uint32_t Perioid2;
-volatile uint32_t ExecutionTime3;
-volatile uint32_t Period;
+void test_bench_init(int test_bench_number);
 
 
 // ##########################################################################
@@ -39,18 +32,27 @@ volatile uint32_t Period;
 
 int main(void)
 {
-    
+    printf("Starting\n");
+
 	test_bench_init(TEST_BENCH_NUMBER);
     /* Initialize the DDS scheduler module */
-    init_dd_scheduler();
     
+    xQueue_Tasks = xQueueCreate(10, sizeof(dd_task));
+    xQueue_Completed = xQueueCreate(10, sizeof(uint32_t));
+
     /* Create the Task Generator, which periodically creates DD-Tasks */
-    xTaskCreate(vTaskGenerator, "TaskGen", configMINIMAL_STACK_SIZE, NULL, TASK_GENERATOR_PRIORITY, NULL);
+    xTaskCreate(DDScheduler, "TaskSch", configMINIMAL_STACK_SIZE, NULL, TASK_GENERATOR_PRIORITY, NULL);
     
     /* Create the Task Monitor, which reports system status periodically */
     xTaskCreate(vTaskMonitor, "Monitor", configMINIMAL_STACK_SIZE, NULL, TASK_MONITOR_PRIORITY, NULL);
     
-    /* Create any additional user-defined tasks here */
+    xTimer_Task1 = xTimerCreate("Timer1", 1, pdFALSE, (void *)0, Task1GenCallback);
+    xTimer_Task2 = xTimerCreate("Timer2", 1, pdFALSE, (void *)0, Task2GenCallback);
+    xTimer_Task3 = xTimerCreate("Timer3", 1, pdFALSE, (void *)0, Task3GenCallback);
+
+    xTimerStart(xTimer_Task1, 0);
+    xTimerStart(xTimer_Task2, 0);
+    xTimerStart(xTimer_Task3, 0);
     
     /* Start the FreeRTOS scheduler */
     vTaskStartScheduler();
@@ -66,26 +68,26 @@ void test_bench_init(int test_bench_number)
 	if(test_bench_number == 1){
 		ExecutionTime1 = 95;
 		ExecutionTime2 = 150;
-		ExecutionTime3 250;
+		ExecutionTime3 = 250;
 		Period1 = 500;
-		Perioid2 = 500;
-		Period = 750;
+		Period2 = 500;
+		Period3 = 750;
 	}
 	if(test_bench_number == 2){
 		ExecutionTime1 = 95;
 		ExecutionTime2 = 150;
 		ExecutionTime3 = 250;
 		Period1 = 250;
-		Perioid2 = 500;
-		Period = 750;
+		Period2 = 500;
+		Period3 = 750;
 	}
 	if(test_bench_number == 3){
 		ExecutionTime1 = 100;
 		ExecutionTime2 = 200;
 		ExecutionTime3 = 200;
 		Period1 = 500;
-		Perioid2 = 500;
-		Period = 500;
+		Period2 = 500;
+		Period3 = 500;
 	}
 
 }

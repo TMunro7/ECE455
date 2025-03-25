@@ -2,7 +2,7 @@
 #include "TaskScheduler.h" 
 #include "FreeRTOS.h"
 #include "task.h"
-#include <stdio.h>
+#include "setup.h"
 
 volatile int EXPECTED_OVERDUE;
 volatile int EXPECTED_COMPLETE;
@@ -44,6 +44,6 @@ void vTaskMonitor(void *pvParameters)
         }
         
         printf("Active: %d, Overdue: %d, Complete: %d\n", EXPECTED_ACTIVE, EXPECTED_OVERDUE, EXPECTED_COMPLETE);
-        vTaskDelay(pdMS_TO_TICKS(MONITOR_PERIOD));
+        vTaskDelay(pdMS_TO_TICKS(1500));
     }
 }
