@@ -1,0 +1,6 @@
+
+
+Temporary breakpoint 
+1, main () at ..\src\main.c:35
+35	    printf("Starting\n");
+No breakpoint number 3.
