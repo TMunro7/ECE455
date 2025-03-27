@@ -19,9 +19,8 @@
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
 
-#define TASK_GENERATOR_PRIORITY  (tskIDLE_PRIORITY + 1)
-#define TASK_MONITOR_PRIORITY    (tskIDLE_PRIORITY + 1)
-#define TEST_BENCH_NUMBER 1 // Change this to the number of the test bench you are running
+#define TASK_SCHEDULER_PRIORITY  configMAX_PRIORITIES-2
+#define TASK_MONITOR_PRIORITY    configMAX_PRIORITIES-2
 
 void test_bench_init(int test_bench_number);
 
@@ -34,17 +33,22 @@ int main(void)
 {
     printf("Starting\n");
 
-	test_bench_init(TEST_BENCH_NUMBER);
-    /* Initialize the DDS scheduler module */
+	test_bench_init(TEST_BENCH);
+
+	for (int i = 0; i < 3; i++) {
+		PREEMPTED[i] = 0;
+	}
     
     xQueue_Tasks = xQueueCreate(10, sizeof(dd_task));
     xQueue_Completed = xQueueCreate(10, sizeof(uint32_t));
 
     /* Create the Task Generator, which periodically creates DD-Tasks */
-    xTaskCreate(DDScheduler, "TaskSch", configMINIMAL_STACK_SIZE, NULL, TASK_GENERATOR_PRIORITY, NULL);
+    xTaskCreate(DDScheduler, "Scheduler", configMINIMAL_STACK_SIZE, NULL, TASK_SCHEDULER_PRIORITY, NULL);
     
     /* Create the Task Monitor, which reports system status periodically */
-    xTaskCreate(vTaskMonitor, "Monitor", configMINIMAL_STACK_SIZE, NULL, TASK_MONITOR_PRIORITY, NULL);
+    if (MONITOR_OR_DEBUG == 0) {
+    	xTaskCreate(vTaskMonitor, "Monitor", configMINIMAL_STACK_SIZE, NULL, TASK_MONITOR_PRIORITY, NULL);
+    }
     
     xTimer_Task1 = xTimerCreate("Timer1", 1, pdFALSE, (void *)0, Task1GenCallback);
     xTimer_Task2 = xTimerCreate("Timer2", 1, pdFALSE, (void *)0, Task2GenCallback);
@@ -56,9 +60,6 @@ int main(void)
     
     /* Start the FreeRTOS scheduler */
     vTaskStartScheduler();
-    
-    /* Should never reach here since vTaskStartScheduler only returns on error */
-    for(;;);
     
     return 0;
 }
@@ -73,7 +74,7 @@ void test_bench_init(int test_bench_number)
 		Period2 = 500;
 		Period3 = 750;
 	}
-	if(test_bench_number == 2){
+	else if(test_bench_number == 2){
 		ExecutionTime1 = 95;
 		ExecutionTime2 = 150;
 		ExecutionTime3 = 250;
@@ -81,7 +82,7 @@ void test_bench_init(int test_bench_number)
 		Period2 = 500;
 		Period3 = 750;
 	}
-	if(test_bench_number == 3){
+	else if(test_bench_number == 3){
 		ExecutionTime1 = 100;
 		ExecutionTime2 = 200;
 		ExecutionTime3 = 200;

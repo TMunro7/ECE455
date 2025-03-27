@@ -1,5 +1,5 @@
 #include "TaskMonitor.h"
-#include "TaskScheduler.h" 
+#include "TaskScheduler.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "setup.h"
@@ -26,24 +26,29 @@ void vTaskMonitor(void *pvParameters)
         EXPECTED_OVERDUE = 0;
         EXPECTED_COMPLETE = 0;
         EXPECTED_ACTIVE = 0;
+
         dd_task_list *temp = overdue_task_list;
         while(temp != NULL) {
             EXPECTED_OVERDUE++;
             temp = temp->next_task;
         }
+
         temp = completed_task_list;
         while(temp != NULL) {
             EXPECTED_COMPLETE++;
             temp = temp->next_task;
         }
+
         temp = active_task_list;
         while (temp != NULL)
         {
             EXPECTED_ACTIVE++;
             temp = temp->next_task;
         }
-        
+
+        printf("----------------------------------------------\n");
         printf("Active: %d, Overdue: %d, Complete: %d\n", EXPECTED_ACTIVE, EXPECTED_OVERDUE, EXPECTED_COMPLETE);
-        vTaskDelay(pdMS_TO_TICKS(1500));
+        printf("----------------------------------------------\n");
+        vTaskDelay(pdMS_TO_TICKS(1505));
     }
 }

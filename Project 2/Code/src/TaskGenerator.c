@@ -50,7 +50,7 @@ void Task3(void *pvParameters) {
     TickType_t start = xTaskGetTickCount();
     TickType_t cur;
     TickType_t elapsed = 0;
-    TickType_t remaining = pdMS_TO_TICKS(ExecutionTime1);
+    TickType_t remaining = pdMS_TO_TICKS(ExecutionTime3);
 
     while (elapsed < remaining) {
         if (PREEMPTED[2]) {

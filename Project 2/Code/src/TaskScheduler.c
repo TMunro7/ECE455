@@ -56,11 +56,12 @@ void DDScheduler(void *pvParameters) {
                 removed_task->completion = cur_tick;
                 vTaskDelete(cur_task->t_handle);
 
-                if (MONITOR_OR_DEBUG == 1) {
+                if (MONITOR_OR_DEBUG == 0) {
                     if (TEST_BENCH == 1) {
                         printf("%d Task %d completed: %d Ex: %d\n", EVENT_NUM, (int)completed_task_id, (int)removed_task->completion, BENCH_1_COMPLETED_VALUES[removed_task->task_id - 1][TASK_COMPLETED_COUNT[removed_task->task_id - 1]]);
                         TASK_COMPLETED_COUNT[removed_task->task_id - 1] += 1;
                     } else {
+                    	printf("TASK: %d, TICK: %d, DEADLINE: %d\n", (int)cur_task->task_id, (int)cur_tick, (int)cur_task->deadline);
                         printf("%d Task %d completed: %d\n", EVENT_NUM, (int)completed_task_id, (int)removed_task->completion);
                     }
                 }
@@ -70,12 +71,12 @@ void DDScheduler(void *pvParameters) {
                 cur_task = NULL;
             
             } else {
-                printf("Error: task scheduler failed at line 58");
+                printf("Error: overdue task detected\n");
             }
         }
 
         if (xQueueReceive(xQueue_Tasks, &new_task, 0) == pdTRUE && new_task != NULL) {
-            if (MONITOR_OR_DEBUG == 1) {
+            if (MONITOR_OR_DEBUG == 0) {
                 if (TEST_BENCH == 1) {
                     printf("%d Task %d released:  %d Ex: %d\n", EVENT_NUM, (int)new_task->task_id, (int)cur_tick, BENCH_1_RELEASE_VALUES[new_task->task_id - 1][TASK_RELEASE_COUNT[new_task->task_id - 1]]);
 					TASK_RELEASE_COUNT[new_task->task_id - 1] += 1;
@@ -89,7 +90,7 @@ void DDScheduler(void *pvParameters) {
         }
 
         if (cur_task != NULL && cur_tick > cur_task->deadline) {
-            if (MONITOR_OR_DEBUG == 1) {
+            if (MONITOR_OR_DEBUG == 0) {
                 printf("Task %d OVERDUE: %d DL: %d\n", (int)cur_task->task_id, (int)cur_tick, (int)cur_task->deadline);
             }
             dd_task *removed_task = remove_from_list((volatile dd_task_list **) &active_tasks, cur_task->task_id);
@@ -134,7 +135,7 @@ void create_dd_task(TaskHandle_t t_handle, task_type type, uint32_t task_id, uin
     task->deadline = pdMS_TO_TICKS(deadline);
     task->completion = 0;
 
-    xQueueSend(xQueue_Tasks, &task, 0);
+    xQueueSend(xQueue_Tasks, &task, 50);
 }
 
 
